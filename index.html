@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Smoothie Cafe </title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+    <style>
+        body { font-family: 'Sarabun', sans-serif; background-color: #f0fdf4; color: #14532d; -webkit-tap-highlight-color: transparent; }
+        .img-crop { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
+        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #15803d; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+    </style>
+</head>
+<body>
+
+<div id="app" class="min-h-screen relative pb-10">
+
+    <!-- Connection Status -->
+    <div v-if="status === 'offline'" class="bg-orange-500 text-white text-center text-xs py-1 sticky top-0 z-[60]">
+        <i class="fas fa-wifi"></i> โหมดออฟไลน์: ข้อมูลบันทึกในเครื่อง (จะส่งขึ้น Cloud เมื่อเน็ตมา)
+    </div>
+    <div v-if="status === 'connected'" class="bg-green-600 text-white text-center text-xs py-1 sticky top-0 z-[60]">
+        <i class="fas fa-check-circle"></i> เชื่อมต่อระบบร้าน: smootie-dba81 เรียบร้อย
+    </div>
+
+    <!-- Navbar -->
+<div class="bg-gradient-to-r from-green-700 via-green-600 to-emerald-500 text-white p-3 z-50 shadow-lg">        
+    <div class="max-w-md mx-auto flex justify-between items-center">
+            <h1 class="text-lg font-bold flex items-center gap-2 italic">
+                <span class="text-2xl drop-shadow-md">🥤</span> <span class="drop-shadow-md">Smoothie Cafe</span>
+            </h1>
+            <div class="flex bg-white/20 p-1 rounded-lg backdrop-blur-sm border border-white/30">
+                <button @click="changeView('customer')" :class="['px-3 py-1 rounded text-xs font-bold transition', view==='customer' ? 'bg-white text-green-700 shadow' : 'text-green-100 hover:text-white']">สั่งกิน</button>
+                <button @click="changeView('queue')" :class="['px-3 py-1 rounded text-xs font-bold transition', view==='queue' ? 'bg-white text-green-700 shadow' : 'text-green-100 hover:text-white']">ดูคิว</button>
+                <button @click="checkMerchantAccess" :class="['px-3 py-1 rounded text-xs font-bold transition', view==='merchant' ? 'bg-white text-green-700 shadow' : 'text-green-100 hover:text-white']">แม่ค้า</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- === VIEW: CUSTOMER === -->
+    <div v-if="view === 'customer'" class="max-w-md mx-auto p-4 pb-36 animate-fade-in">
+        <div class="bg-gray-900 rounded-2xl p-4 mb-6 shadow-xl border border-gray-700 flex items-center justify-between relative overflow-hidden">
+            <div class="z-10">
+                <div class="text-[10px] text-gray-400 uppercase font-bold mb-1">⚡ กำลังปั่นให้...</div>
+                <div v-if="cookingList.length > 0" class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400 truncate max-w-[150px]">
+                    {{ cookingList[0].customerName }}
+                </div>
+                <div v-else class="text-xl font-bold text-gray-600">ว่างครับ</div>
+            </div>
+            <div class="w-px h-10 bg-gray-700 mx-2"></div>
+            <div class="text-center z-10">
+                <div class="text-[10px] text-gray-400 uppercase font-bold mb-1">⏳ รอคิว</div>
+                <div class="text-2xl font-bold text-white">{{ waitingList.length }} <span class="text-sm text-gray-500 font-normal">คิว</span></div>
+            </div>
+        </div>
+
+        <div class="mb-6 bg-white p-4 rounded-2xl shadow-sm border-l-4 border-green-500">
+            <label class="text-xs text-green-600 font-bold uppercase tracking-wide block mb-1">ชื่อลูกค้า / ชื่อเล่น</label>
+            <input v-model="customerName" type="text" placeholder="เช่น ไบร์ทสุดหล่อ" class="w-full text-xl font-bold text-gray-800 border-b-2 border-green-100 focus:border-green-500 outline-none py-1 bg-transparent">
+        </div>
+        
+        <div class="flex gap-2 mb-4 overflow-x-auto pb-2 no-scrollbar">
+             <button @click="selectedCategory = 'all'" :class="['px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition', selectedCategory === 'all' ? 'bg-green-600 text-white shadow-md' : 'bg-white text-green-600 border border-green-200']">ทั้งหมด</button>
+             <button v-for="cat in categories" :key="cat" @click="selectedCategory = cat" :class="['px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition', selectedCategory === cat ? 'bg-green-600 text-white shadow-md' : 'bg-white text-green-600 border border-green-200']">{{ cat }}</button>
+        </div>
+
+        <!-- Menu Grid -->
+        <div v-if="isLoading" class="text-center py-10 text-gray-400"><div class="loader mx-auto mb-2"></div><p class="text-sm text-gray-400 mt-2">กำลังโหลดเมนู...</p></div>
+        <div v-else class="grid grid-cols-2 gap-4 mb-20">
+            <div v-for="item in filteredMenuItems" :key="item.id" class="bg-white p-3 rounded-2xl shadow-sm hover:shadow-md transition border border-gray-100 relative overflow-hidden group cursor-pointer" @click="openCustomizeModal(item)">
+                <div v-if="!item.available" class="absolute inset-0 bg-gray-100/80 z-10 flex items-center justify-center backdrop-blur-[1px]">
+                    <span class="bg-red-500 text-white px-3 py-1 rounded-full text-xs font-bold transform -rotate-12 shadow-lg">หมดค่ะ</span>
+                </div>
+                <div class="relative rounded-xl overflow-hidden mb-3 bg-gray-100 pointer-events-none">
+                    <img :src="item.imageUrl || 'https://via.placeholder.com/150?text=No+Image'" class="img-crop transition duration-500 group-hover:scale-110" alt="Menu">
+                    <div class="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 pt-6">
+                        <p class="text-white font-bold text-lg">{{ item.price }}.-</p>
+                    </div>
+                </div>
+                <div class="flex justify-between items-end pointer-events-none">
+                    <div>
+                        <h3 class="font-bold text-gray-800 text-sm leading-tight pr-2">{{ item.name }}</h3>
+                        <span class="text-[10px] text-gray-400 bg-gray-100 px-1 rounded">{{ item.category || 'ทั่วไป' }}</span>
+                    </div>
+                    <button class="bg-green-500 text-white w-8 h-8 rounded-full shadow-lg flex items-center justify-center">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div v-if="!isLoading && filteredMenuItems.length === 0" class="text-center py-10 text-gray-400">
+             <i class="fas fa-leaf text-4xl mb-2 opacity-30"></i><br>ยังไม่มีเมนู
+        </div>
+
+        <!-- Cart -->
+        <div v-if="cart.length > 0" class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-lg border-t border-gray-200 p-4 shadow-[0_-5px_20px_rgba(0,0,0,0.1)] z-40 max-w-md mx-auto right-0 rounded-t-2xl animate-slide-up">
+            <div class="max-h-40 overflow-y-auto mb-3 space-y-2 px-1">
+                <div v-for="(cItem, idx) in cart" :key="idx" class="flex justify-between text-sm bg-white p-2 rounded-lg shadow-sm border border-gray-100">
+                    <div>
+                        <div class="font-bold">{{ cItem.name }}</div>
+                        <div class="text-xs text-gray-500">
+                            หวาน {{ cItem.sweetness }}% <span v-if="cItem.note" class="text-orange-500">({{ cItem.note }})</span>
+                        </div>
+                        <div v-if="cItem.toppings && cItem.toppings.length > 0" class="text-xs text-green-600 mt-0.5">
+                            + {{ cItem.toppings.map(t => t.name).join(', ') }}
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <span class="font-bold text-lg">{{ cItem.totalItemPrice }}.-</span>
+                        <button @click="removeCartItem(idx)" class="text-red-400 text-xs font-bold hover:text-red-600">ลบ</button>
+                    </div>
+                </div>
+            </div>
+            <div class="flex justify-between items-center mb-2 pt-2 border-t border-gray-200">                <div class="text-right">
+                    <span class="text-xs text-gray-400 mr-2">{{ cart.length }} แก้ว</span>
+                    <span class="font-black text-3xl text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-emerald-600">{{ cartTotal }}.-</span>
+                </div>
+            </div>
+            <button @click="submitOrder" :disabled="isSubmitting" class="w-full bg-gradient-to-r from-green-600 to-emerald-500 text-white font-extrabold py-4 rounded-2xl text-xl shadow-xl shadow-green-200 hover:from-green-500 hover:to-emerald-400 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                <span v-if="isSubmitting"><i class="fas fa-spinner fa-spin"></i> กำลังส่ง...</span>
+                <span v-else>🚀 ยืนยันสั่ง</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- === MODAL: CUSTOMIZE === -->
+    <div v-if="showModal" class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" @click="showModal = false"></div>
+        <div class="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl relative z-10 pointer-events-auto animate-slide-up flex flex-col max-h-[85vh]">
+            <div class="p-6 pb-2 border-b border-gray-100">
+                <div class="flex gap-4 mb-2">
+                    <img :src="selectedItem.imageUrl || 'https://via.placeholder.com/150'" class="w-20 h-20 rounded-xl object-cover shadow-md">
+                    <div>
+                        <h3 class="text-2xl font-black text-gray-800 leading-tight">{{ selectedItem.name }}</h3>
+                        <p class="text-green-600 font-bold text-xl">{{ selectedItem.price }}.-</p>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 pt-2 overflow-y-auto flex-1">
+                <div class="mb-4">
+                    <label class="block text-sm font-bold text-gray-600 mb-2 mt-2">🍬 ความหวาน</label>
+                    <div class="grid grid-cols-4 gap-2">
+                        <button v-for="level in [0, 25, 50, 100]" :key="level" @click="customOptions.sweetness = level" :class="['py-2 rounded-lg text-sm font-bold border-2 transition-all', customOptions.sweetness === level ? 'border-green-500 bg-green-50 text-green-700 ring-2 ring-green-200' : 'border-gray-100 text-gray-400']">{{ level }}%</button>
+                    </div>
+                </div>
+                <div class="mb-4" v-if="toppings.length > 0">
+                    <label class="block text-sm font-bold text-gray-600 mb-2">🍧 เพิ่มท็อปปิ้ง</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div v-for="top in availableToppings" :key="top.id" @click="toggleToppingSelection(top)" :class="['relative border-2 rounded-xl p-1 flex flex-col items-center cursor-pointer transition-all overflow-hidden', isToppingSelected(top) ? 'border-green-500 bg-green-50 shadow-md' : 'border-gray-100 bg-white hover:border-green-200']">
+                             <div v-if="isToppingSelected(top)" class="absolute top-1 right-1 text-green-600 bg-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] shadow"><i class="fas fa-check"></i></div>
+                             <img :src="top.imageUrl || 'https://via.placeholder.com/150'" class="w-12 h-12 rounded-lg object-cover mb-1">
+                             <div class="text-[10px] font-bold text-center leading-tight">{{ top.name }}</div>
+                             <div class="text-xs font-bold text-green-600">{{ top.price > 0 ? '+' + top.price : 'ฟรี!' }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <label class="block text-sm font-bold text-gray-600 mb-2">📝 หมายเหตุ</label>
+                    <input v-model="customOptions.note" type="text" class="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 focus:outline-green-500" placeholder="เช่น ไม่เอาฝา...">
+                </div>
+            </div>
+            <div class="p-4 border-t border-gray-100 bg-white rounded-b-3xl shadow-[0_-5px_15px_rgba(0,0,0,0.05)]">
+                <button @click="confirmAddToCart" class="w-full bg-gray-900 text-white py-4 rounded-2xl font-bold text-lg shadow-lg active:scale-95 transition flex justify-between px-6 items-center">
+                    <span>ใส่ตะกร้าเลย</span>
+                    <span class="text-green-400 text-xl">{{ calculateModalTotal() }}.-</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- === VIEW: QUEUE === -->
+    <div v-if="view === 'queue'" class="min-h-screen p-6 flex flex-col bg-green-900">
+        <div class="text-center mb-8">
+            <h2 class="text-4xl font-black text-white uppercase tracking-widest drop-shadow-lg">QUEUE BOARD</h2>
+            <p class="text-green-200 opacity-80">ลำดับความสดชื่น</p>
+        </div>
+        <div class="flex-1 max-w-4xl mx-auto w-full grid grid-cols-1 gap-6 pb-10">
+            <div class="bg-gray-900 rounded-3xl border-4 border-green-500 relative flex flex-col items-center justify-center text-center p-8 shadow-[0_0_60px_rgba(34,197,94,0.4)] blending-active min-h-[250px]">
+                <div class="absolute top-0 left-0 w-full bg-green-600 text-white py-2 font-black tracking-widest uppercase text-sm">Blending Now (กำลังปั่น)</div>
+                <div v-if="cookingList.length > 0" class="z-10 mt-6 w-full">
+                    <div class="text-[80px] leading-none font-black text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)] truncate">{{ cookingList[0].customerName }}</div>
+                    <div class="mt-4 text-green-400 text-xl font-bold animate-pulse">🥤 {{ cookingList[0].items.map(i=>i.name).join(', ') }}</div>
+                </div>
+                <div v-else class="text-gray-700 z-10 mt-4"><div class="text-6xl mb-4 opacity-20">🥬</div><div class="text-2xl font-bold">รอออเดอร์</div></div>
+            </div>
+            <div class="bg-white/10 rounded-3xl p-6 border border-white/10 shadow-xl backdrop-blur-sm">
+                <div class="flex justify-between items-end border-b border-white/10 pb-4 mb-4"><h3 class="text-2xl font-bold text-yellow-400">⏳ คิวรอต่อไป</h3><span class="bg-black/30 text-white px-3 py-1 rounded-lg text-sm font-bold">{{ waitingList.length }} คิว</span></div>
+                <div v-if="waitingList.length > 0" class="space-y-3">
+                    <div v-for="(order, index) in waitingList" :key="order.id" class="bg-black/30 p-4 rounded-2xl flex justify-between items-center border-l-4 border-yellow-500">
+                        <div class="flex items-center gap-4"><div class="bg-white/10 w-10 h-10 rounded-full flex items-center justify-center font-black text-lg text-white">{{ index + 1 }}</div><div><div class="text-2xl font-bold text-white">{{ order.customerName }}</div><div class="text-xs text-gray-400 mt-1">{{ formatTime(order.timestamp) }}</div></div></div>
+                        <div class="text-right"><span class="text-yellow-400 font-black text-xl">{{ order.items.length }}</span><span class="text-gray-400 text-xs font-bold ml-1">แก้ว</span></div>
+                    </div>
+                </div>
+                <div v-else class="text-center py-10 text-green-200/50 border-2 border-dashed border-white/10 rounded-2xl">ว่างครับ สั่งได้เลย</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- === VIEW: MERCHANT === -->
+    <div v-if="view === 'merchant'" class="max-w-md mx-auto min-h-screen bg-gray-50 animate-fade-in">
+        <div class="bg-white p-2 z-40 flex gap-2 border-b border-gray-200 shadow-sm">            <button @click="merchantTab = 'orders'" :class="['flex-1 py-3 rounded-xl font-bold text-sm transition-all', merchantTab === 'orders' ? 'bg-green-600 text-white shadow-md' : 'text-gray-500 bg-gray-100']">📋 ออเดอร์</button>
+            <button @click="merchantTab = 'menu'" :class="['flex-1 py-3 rounded-xl font-bold text-sm transition-all', merchantTab === 'menu' ? 'bg-gray-800 text-white shadow-md' : 'text-gray-500 bg-gray-100']">⚙️ เมนู/ร้าน</button>
+        </div>
+
+        <div v-if="merchantTab === 'orders'" class="p-4">
+            <div @click="showHistoryModal = true" class="bg-gradient-to-br from-green-800 to-emerald-600 rounded-2xl p-5 shadow-lg mb-6 text-white relative overflow-hidden cursor-pointer hover:scale-[1.02] transition-transform active:scale-95">
+                <div class="absolute right-0 top-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
+                <div class="flex justify-between items-start relative z-10 mb-4">
+                    <div><div class="text-green-100 text-xs font-bold uppercase tracking-wider mb-1 flex items-center gap-1">ยอดขายรอบปัจจุบัน <i class="fas fa-search-plus text-[10px] opacity-70"></i></div><div class="text-4xl font-black">{{ currentCycleRevenue.toLocaleString() }}.-</div></div>
+                    <button @click.stop="closeSalesCycle" class="bg-white text-red-600 px-3 py-2 rounded-xl font-bold shadow hover:bg-gray-100 text-xs flex items-center gap-1 z-20 relative"><i class="fas fa-lock"></i> ปิดยอด</button>
+                </div>
+                <div class="flex gap-3 relative z-10"><div class="flex-1 bg-black/20 rounded-lg p-2 flex justify-between items-center"><span class="text-xs text-green-100">จำนวนบิล</span><span class="font-bold text-lg">{{ currentCycleCount }}</span></div><div class="flex items-center text-xs text-green-200 italic"><i class="fas fa-hand-pointer mr-1 animate-pulse"></i> จิ้มดูประวัติ</div></div>
+            </div>
+            <div v-if="activeOrders.length === 0" class="text-center mt-10 text-gray-400"><div class="text-6xl mb-4 opacity-30">😴</div><p>ไม่มีออเดอร์ค้าง</p></div>
+            <transition-group name="list">
+                <div v-for="order in activeOrders" :key="order.id" class="p-5 rounded-2xl mb-4 border relative overflow-hidden transition-all shadow-sm" :class="order.status === 'cooking' ? 'bg-green-50 border-green-500 ring-2 ring-green-200' : 'bg-white border-orange-200'">
+                    <div v-if="order.status === 'cooking'" class="absolute top-0 left-0 w-full bg-green-500 text-white text-[10px] font-bold text-center py-1 uppercase">กำลังปั่น</div>
+                    <div v-if="order.status === 'waiting'" class="absolute top-0 left-0 w-full bg-orange-500 text-white text-[10px] font-bold text-center py-1 uppercase">รอคิว</div>
+                    <div class="flex justify-between items-center mb-4 mt-3"><h2 class="text-3xl font-black text-gray-800">{{ order.customerName }}</h2><div class="text-right"><div class="text-xs font-bold text-gray-400">{{ formatTime(order.timestamp) }}</div><div class="text-lg font-black text-green-600">{{ order.total }}.-</div></div></div>
+                    <div class="space-y-3 mb-5">
+                        <div v-for="item in order.items" class="border-b border-dashed border-gray-200 pb-2 last:border-0">
+                            <div class="flex justify-between"><span class="font-bold text-gray-700 text-lg">🥤 {{ item.name }}</span><span class="text-gray-500">{{ item.totalItemPrice }}</span></div>
+                            <div class="flex flex-wrap gap-2 text-sm mt-1"><span class="bg-green-100 text-green-800 px-2 py-0.5 rounded text-xs font-bold">หวาน {{ item.sweetness }}%</span><span v-for="top in item.toppings" class="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs font-bold">+{{ top.name }}</span><span v-if="item.note" class="bg-orange-100 text-orange-800 px-2 py-0.5 rounded text-xs font-bold">📝 {{ item.note }}</span></div>
+                        </div>
+                    </div>
+                    <div class="gap-2"><button v-if="order.status === 'waiting'" @click="updateStatus(order.id, 'cooking')" class="w-full bg-blue-500 hover:bg-blue-600 text-white py-3 rounded-xl font-bold shadow-md mb-2">🔥 เริ่มปั่น</button><button v-if="order.status === 'cooking'" @click="finishOrder(order.id)" class="w-full bg-green-500 hover:bg-green-600 text-white py-4 rounded-xl font-bold shadow-lg text-lg flex items-center justify-center gap-2 transition transform active:scale-95"><span class="text-2xl">💰</span> รับเงิน (เสิร์ฟ)</button></div>
+                </div>
+            </transition-group>
+        </div>
+
+        <div v-if="merchantTab === 'menu'" class="p-4 pb-20">
+            <div class="flex gap-2 mb-4 bg-gray-100 p-1 rounded-xl">
+                <button @click="merchantSubTab = 'product'" :class="['flex-1 py-2 rounded-lg text-sm font-bold transition', merchantSubTab==='product' ? 'bg-white shadow text-gray-800' : 'text-gray-400']">🍹 จัดการน้ำปั่น</button>
+                <button @click="merchantSubTab = 'topping'" :class="['flex-1 py-2 rounded-lg text-sm font-bold transition', merchantSubTab==='topping' ? 'bg-white shadow text-gray-800' : 'text-gray-400']">🍧 จัดการท็อปปิ้ง</button>
+            </div>
+            <div v-if="merchantSubTab === 'product'">
+                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 mb-6">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-camera text-green-500 mr-2"></i> เพิ่มเมนูน้ำ</h3>
+                    <div class="flex gap-4 mb-4">
+                        <label class="w-24 h-24 flex-shrink-0 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer relative overflow-hidden hover:bg-gray-50 transition"><img v-if="newMenu.imageUrl" :src="newMenu.imageUrl" class="w-full h-full object-cover absolute inset-0"><div v-else class="text-center text-gray-400"><i class="fas fa-plus text-xl"></i><br><span class="text-[10px]">รูป</span></div><input type="file" id="fileInput" class="hidden" accept="image/*" @change="handleFile" required></label>
+                        <div class="flex-grow space-y-2">
+                            <input v-model="newMenu.name" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-green-500 font-bold" placeholder="ชื่อเมนู" required>
+                            <input v-model.number="newMenu.price" type="number" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-green-500 font-bold text-green-600" placeholder="ราคา" required>
+                            <select v-model="newMenu.category" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-green-500"><option value="">หมวดทั่วไป</option><option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option></select>
+                        </div>
+                    </div>
+                    <button @click="addMenu" :disabled="isUploading" class="w-full bg-gray-800 text-white py-3 rounded-xl font-bold shadow hover:bg-black transition flex justify-center items-center"><span v-if="isUploading" class="loader mr-2"></span>{{ isUploading ? 'กำลังบันทึก...' : 'บันทึกเมนู' }}</button>
+                </div>
+                <div class="flex justify-between items-center mb-3"><h3 class="font-bold text-gray-600">รายการในร้าน ({{ menuItems.length }})</h3><button @click="manageCategories" class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded hover:bg-green-200">จัดการหมวดหมู่</button></div>
+                <div class="space-y-2">
+                    <div v-for="item in menuItems" :key="item.id" class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 cursor-pointer hover:border-green-200 transition" @click="toggleStock(item, 'menu')">
+                        <div class="flex items-center gap-3"><img :src="item.imageUrl || 'https://via.placeholder.com/150'" class="w-12 h-12 rounded-lg object-cover bg-gray-100"><div><div :class="['font-bold', !item.available ? 'text-gray-400 line-through' : 'text-gray-800']">{{ item.name }}</div><div class="text-xs text-green-600 font-bold">{{ item.price }}.-</div></div></div>
+                        <div class="flex items-center gap-3"><div :class="['w-10 h-6 rounded-full p-1 flex items-center transition-all', item.available ? 'bg-green-500 justify-end' : 'bg-gray-200 justify-start']"><div class="w-4 h-4 bg-white rounded-full shadow"></div></div><button @click.stop="deleteItem(item.id, 'menu')" class="text-gray-300 hover:text-red-500 p-2"><i class="fas fa-trash"></i></button></div>
+                    </div>
+                </div>
+            </div>
+            <div v-if="merchantSubTab === 'topping'">
+                 <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-200 mb-6">
+                    <h3 class="font-bold text-gray-800 mb-4 flex items-center"><i class="fas fa-ice-cream text-purple-500 mr-2"></i> เพิ่มท็อปปิ้ง</h3>
+                    <div class="flex gap-4 mb-4">
+                        <label class="w-20 h-20 flex-shrink-0 bg-gray-100 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center cursor-pointer relative overflow-hidden hover:bg-gray-50 transition"><img v-if="newTopping.imageUrl" :src="newTopping.imageUrl" class="w-full h-full object-cover absolute inset-0"><div v-else class="text-center text-gray-400"><i class="fas fa-plus text-xl"></i><br><span class="text-[10px]">รูป</span></div><input type="file" id="toppingInput" class="hidden" accept="image/*" @change="handleToppingFile" required></label>
+                        <div class="flex-grow space-y-2">
+                            <input v-model="newTopping.name" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-purple-500 font-bold" placeholder="ชื่อท็อปปิ้ง (เช่น ไข่มุก)" required>
+                            <input v-model.number="newTopping.price" type="number" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-purple-500 font-bold text-purple-600" placeholder="ราคาเพิ่ม (0 = ฟรี)" required>
+                        </div>
+                    </div>
+                    <button @click="addTopping" :disabled="isUploading" class="w-full bg-purple-600 text-white py-3 rounded-xl font-bold shadow hover:bg-purple-800 transition flex justify-center items-center"><span v-if="isUploading" class="loader mr-2"></span>{{ isUploading ? 'กำลังบันทึก...' : 'บันทึกท็อปปิ้ง' }}</button>
+                </div>
+                <h3 class="font-bold text-gray-600 mb-3">รายการท็อปปิ้ง ({{ toppings.length }})</h3>
+                 <div class="space-y-2">
+                    <div v-for="item in toppings" :key="item.id" class="flex justify-between items-center bg-white p-2 rounded-xl border border-gray-200 cursor-pointer hover:border-purple-200 transition" @click="toggleStock(item, 'toppings')">
+                        <div class="flex items-center gap-3"><img :src="item.imageUrl || 'https://via.placeholder.com/150'" class="w-12 h-12 rounded-lg object-cover bg-gray-100"><div><div :class="['font-bold', !item.available ? 'text-gray-400 line-through' : 'text-gray-800']">{{ item.name }}</div><div class="text-xs text-purple-600 font-bold">{{ item.price > 0 ? '+' + item.price : 'ฟรี!' }}</div></div></div>
+                        <div class="flex items-center gap-3"><div :class="['w-10 h-6 rounded-full p-1 flex items-center transition-all', item.available ? 'bg-purple-500 justify-end' : 'bg-gray-300 justify-start']"><div class="w-4 h-4 bg-white rounded-full shadow"></div></div><button @click.stop="deleteItem(item.id, 'toppings')" class="text-gray-300 hover:text-red-500 p-2"><i class="fas fa-trash"></i></button></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div v-if="showHistoryModal" class="fixed inset-0 z-[70] flex items-center justify-center p-4">
+        <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="showHistoryModal = false"></div>
+        <div class="bg-white w-full max-w-md rounded-2xl overflow-hidden shadow-2xl relative z-10 flex flex-col max-h-[80vh] animate-slide-up">
+            <div class="bg-gray-900 p-4 text-white flex justify-between items-center shadow"><div><h3 class="font-bold text-lg">📜 ประวัติการขายรอบนี้</h3><p class="text-xs text-gray-400">รายการที่ยังไม่ได้กดปิดยอด</p></div><button @click="showHistoryModal = false" class="bg-gray-700 w-8 h-8 rounded-full flex items-center justify-center hover:bg-gray-600 transition">✕</button></div>
+            <div class="flex-1 overflow-y-auto p-4 bg-gray-50">
+                <div v-if="currentCycleOrders.length === 0" class="text-center text-gray-400 mt-10"><div class="text-5xl mb-2 opacity-30">🧾</div><p>ยังไม่มีบิลในรอบนี้ครับ</p></div>
+                <div v-else class="space-y-2">
+                    <div v-for="order in currentCycleOrders" :key="order.id" class="bg-white p-3 rounded-xl border border-gray-200 shadow-sm text-sm">
+                        <div class="flex justify-between mb-1 border-b border-dashed border-gray-100 pb-1"><span class="font-bold text-gray-800">{{ order.customerName }}</span><span class="text-gray-400 text-xs">{{ formatTime(order.paidAt) }}</span></div>
+                        <div class="text-gray-600 mb-1 pl-2 border-l-2 border-green-200"><div v-for="item in order.items" class="flex justify-between"><span>- {{ item.name }} ({{ item.sweetness }}%) <span v-if="item.toppings.length" class="text-[10px] text-purple-500">+{{item.toppings.map(t=>t.name).join(',')}}</span></span></div></div>
+                        <div class="text-right font-black text-green-600">รวม {{ order.total }}.-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="p-4 bg-white border-t border-gray-200 flex justify-between items-center"><div class="text-xs text-gray-500">รวม {{ currentCycleCount }} บิล</div><div class="text-2xl font-black text-green-700">{{ currentCycleRevenue.toLocaleString() }}.-</div></div>
+        </div>
+    </div>
+    
+    <audio id="orderSound" src="https://assets.mixkit.co/active_storage/sfx/933/933-preview.mp3"></audio>
+</div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, setDoc, getDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+
+    // --- 🔥 CONFIG ของคุณ (ฝังให้แล้ว) ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyC_CDbehAnLTepbmpR9ozaBhHwsIzkh9LM",
+        authDomain: "smootie-dba81.firebaseapp.com",
+        projectId: "smootie-dba81",
+        storageBucket: "smootie-dba81.firebasestorage.app",
+        messagingSenderId: "265570955338",
+        appId: "1:265570955338:web:81c1b921294d593dd1b6b3",
+        measurementId: "G-H2PHM74PNK"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    
+    // Hybrid Mode: Keep Local Copy for Speed
+    enableIndexedDbPersistence(db).catch((err) => { console.log("Persistence:", err.code); });
+
+    const { createApp } = Vue;
+
+    createApp({
+        data() {
+            return {
+                view: 'customer', merchantTab: 'orders', merchantSubTab: 'product',
+                menuItems: [], toppings: [], activeOrders: [], servedOrders: [], cart: [],
+                customerName: '', 
+                newMenu: { name: '', price: '', imageUrl: null, category: '' },
+                newTopping: { name: '', price: '', imageUrl: null },
+                isUploading: false, isSubmitting: false,
+                lastClosingTime: null,
+                showModal: false, selectedItem: {}, customOptions: { sweetness: 100, note: '', toppings: [] },
+                showHistoryModal: false,
+                categories: ['ปั่น', 'โซดา', 'ชา/กาแฟ'], selectedCategory: 'all',
+                isLoading: true,
+                status: 'online'
+            }
+        },
+        // --- 💾 Persistent Logic (Safe Load) ---
+        created() {
+            this.loadLocalData(); // Load local first
+        },
+        watch: {
+            // Save to local on change (Backup)
+            cart: { handler() { this.saveState(); }, deep: true },
+            customerName() { this.saveState(); },
+            newMenu: { handler() { this.saveState(); }, deep: true },
+            newTopping: { handler() { this.saveState(); }, deep: true }
+        },
+        computed: {
+            cartTotal() { return this.cart.reduce((sum, item) => sum + item.totalItemPrice, 0); },
+            cookingList() { return this.activeOrders.filter(o => o.status === 'cooking'); },
+            waitingList() { return this.activeOrders.filter(o => o.status === 'waiting'); },
+            currentCycleOrders() {
+                if (!this.lastClosingTime) return this.servedOrders;
+                return this.servedOrders.filter(o => o.paidAt && o.paidAt.seconds > this.lastClosingTime.seconds).sort((a, b) => b.paidAt - a.paidAt); 
+            },
+            currentCycleRevenue() { return this.currentCycleOrders.reduce((sum, o) => sum + o.total, 0); },
+            currentCycleCount() { return this.currentCycleOrders.length; },
+            filteredMenuItems() {
+                if (this.selectedCategory === 'all') return this.menuItems;
+                return this.menuItems.filter(m => m.category === this.selectedCategory);
+            },
+            availableToppings() { return this.toppings.filter(t => t.available); }
+        },
+        methods: {
+            changeView(v) { this.view = v; window.scrollTo(0,0); },
+            loadLocalData() {
+                const saved = localStorage.getItem('smoothieState_FINAL'); 
+                if (saved) {
+                    try {
+                        const p = JSON.parse(saved);
+                        if(p.cart) this.cart = p.cart;
+                        if(p.customerName) this.customerName = p.customerName;
+                        // Restore form input (text only)
+                        if(p.newMenu) this.newMenu = { ...p.newMenu, imageUrl: null }; 
+                        if(p.newTopping) this.newTopping = { ...p.newTopping, imageUrl: null }; 
+                    } catch(e) {}
+                }
+            },
+            saveState() {
+                const safeCart = this.cart.map(c => ({ ...c, imageUrl: null })); 
+                const safeMenu = { ...this.newMenu, imageUrl: null };
+                const safeTopping = { ...this.newTopping, imageUrl: null };
+                try {
+                    localStorage.setItem('smoothieState_FINAL', JSON.stringify({
+                        cart: safeCart, customerName: this.customerName, 
+                        newMenu: safeMenu, newTopping: safeTopping
+                    }));
+                } catch (e) {}
+            },
+            // --- 📸 Auto Resize Image ---
+            handleFile(event) { this.processFile(event.target.files[0], (res) => this.newMenu.imageUrl = res); },
+            handleToppingFile(event) { this.processFile(event.target.files[0], (res) => this.newTopping.imageUrl = res); },
+            processFile(file, callback) {
+                if (!file) return;
+                if (file.size > 3 * 1024 * 1024) { alert("รูปใหญ่ไปครับ ขอ < 3MB"); return; } 
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        const maxWidth = 250; 
+                        const scale = maxWidth / img.width;
+                        canvas.width = maxWidth;
+                        canvas.height = img.height * scale;
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        callback(canvas.toDataURL('image/jpeg', 0.5));
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            },
+            // --- Instant UI Actions ---
+            async addMenu() {
+                if (!this.newMenu.name || !this.newMenu.price || !this.newMenu.imageUrl) { Swal.fire('ข้อมูลไม่ครบ', '', 'warning'); return; }
+                const data = { ...this.newMenu }; 
+                this.newMenu = { name: '', price: '', imageUrl: null, category: '' }; 
+                document.getElementById('fileInput').value = ""; 
+                this.isUploading = true;
+                try { await addDoc(collection(db, "menu"), { ...data, available: true, createdAt: serverTimestamp() }); Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 800, showConfirmButton: false }); } 
+                catch (e) { this.status = 'offline'; } finally { this.isUploading = false; }
+            },
+            async addTopping() {
+                if (!this.newTopping.name || (this.newTopping.price === null)) { Swal.fire('ข้อมูลไม่ครบ', '', 'warning'); return; }
+                const data = { ...this.newTopping }; 
+                this.newTopping = { name: '', price: '', imageUrl: null }; 
+                document.getElementById('toppingInput').value = ""; 
+                this.isUploading = true;
+                try { await addDoc(collection(db, "toppings"), { ...data, available: true, createdAt: serverTimestamp() }); Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 800, showConfirmButton: false }); } 
+                catch (e) { this.status = 'offline'; } finally { this.isUploading = false; }
+            },
+            openCustomizeModal(item) { if (!item.available) return; this.selectedItem = item; this.customOptions = { sweetness: 100, note: '', toppings: [] }; this.showModal = true; },
+            toggleToppingSelection(top) {
+                const idx = this.customOptions.toppings.findIndex(t => t.id === top.id);
+                if (idx > -1) this.customOptions.toppings.splice(idx, 1); else this.customOptions.toppings.push(top);
+            },
+            isToppingSelected(top) { return this.customOptions.toppings.some(t => t.id === top.id); },
+            calculateModalTotal() { const base = this.selectedItem.price || 0; const topTotal = this.customOptions.toppings.reduce((sum, t) => sum + t.price, 0); return base + topTotal; },
+            confirmAddToCart() { 
+                const total = this.calculateModalTotal();
+                this.cart.push({ ...this.selectedItem, sweetness: this.customOptions.sweetness, note: this.customOptions.note, toppings: [...this.customOptions.toppings], totalItemPrice: total }); 
+                this.showModal = false; 
+                const Toast = Swal.mixin({ toast: true, position: 'top', showConfirmButton: false, timer: 800, background: '#16a34a', color: '#fff' }); Toast.fire({ icon: 'success', title: 'ใส่ตะกร้าแล้ว 🥤' }); 
+            },
+            removeCartItem(index) {
+                this.cart.splice(index, 1);
+            },
+            async submitOrder() {
+                if (this.cart.length === 0) return;
+                if (!this.customerName) { Swal.fire('แจ้งเตือน', 'กรุณาใส่ชื่อลูกค้า', 'warning'); return; }
+                if (this.isSubmitting) return;
+                this.isSubmitting = true;
+                const total = this.cartTotal;
+                const orderData = { customerName: this.customerName, items: [...this.cart], total: total, status: "waiting", timestamp: serverTimestamp() };
+                this.cart = []; this.customerName = ''; window.scrollTo({ top: 0, behavior: 'smooth' });
+                confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#16a34a', '#4ade80', '#fbbf24'] });
+                Swal.fire({ title: 'สั่งเรียบร้อย!', text: 'รอดูคิวที่จอด้านบนได้เลย', icon: 'success', confirmButtonColor: '#16a34a', timer: 2000, showConfirmButton: false });
+                try { await addDoc(collection(db, "orders"), orderData); } catch (e) { this.status = 'offline'; } finally { this.isSubmitting = false; }
+            },
+            async checkMerchantAccess() {
+                const { value: password } = await Swal.fire({ title: 'รหัสแม่ค้า', input: 'password', confirmButtonText: 'เข้าสู่ระบบ', confirmButtonColor: '#15803d' });
+                if (password === '1234') { this.view = 'merchant'; } else if (password) { Swal.fire('รหัสผิด!', '', 'error'); }
+            },
+            async updateStatus(id, status) { await updateDoc(doc(db, "orders", id), { status: status }); },
+            async finishOrder(id) {
+                await updateDoc(doc(db, "orders", id), { status: 'served', paidAt: serverTimestamp() });
+                const Toast = Swal.mixin({ toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, icon: 'success', title: 'ปิดงานแล้ว 💰' }); Toast.fire();
+            },
+            async closeSalesCycle() {
+                 Swal.fire({ title: 'ยืนยันปิดยอด?', text: `ยอดขาย ${this.currentCycleRevenue} บาท จะถูกรีเซ็ตเป็น 0`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ปิดยอดทันที'
+                }).then(async (result) => { if (result.isConfirmed) { await setDoc(doc(db, "settings", "closing"), { timestamp: serverTimestamp() }); Swal.fire('เรียบร้อย', 'เริ่มนับยอดขายใหม่แล้ว', 'success'); } });
+            },
+            async toggleStock(item, collectionName) { await updateDoc(doc(db, collectionName === 'menu' ? 'menu' : 'toppings', item.id), { available: !item.available }); },
+            async deleteItem(id, collectionName) { 
+                Swal.fire({ title: 'ลบรายการ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ลบเลย' }).then(async (res) => { 
+                    if (res.isConfirmed) await deleteDoc(doc(db, collectionName === 'menu' ? 'menu' : 'toppings', id)); 
+                }) 
+            },
+            formatTime(ts) { return ts ? new Date(ts.seconds*1000).toLocaleTimeString('th-TH', {hour:'2-digit', minute:'2-digit'}) : ''; },
+            playSound() { const audio = document.getElementById('orderSound'); if(audio) audio.play().catch(e => console.log("Audio play blocked:", e)); },
+            async manageCategories() {
+                const { value: cats } = await Swal.fire({ title: 'จัดการหมวดหมู่', input: 'text', inputValue: this.categories.join(','), inputLabel: 'คั่นด้วยลูกน้ำ (,)', showCancelButton: true });
+                if (cats) { this.categories = cats.split(',').map(c => c.trim()); }
+            }
+        },
+        mounted() {
+            // Client-side Sort Only (Reliable)
+            onSnapshot(collection(db, "menu"), (snap) => { 
+                this.isLoading = false;
+                this.menuItems = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); 
+            }, (error) => { console.error("Menu Error", error); this.isLoading = false; });
+
+            onSnapshot(collection(db, "toppings"), (snap) => { 
+                this.toppings = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); 
+            });
+            
+            onSnapshot(query(collection(db, "orders"), orderBy("timestamp", "asc")), (snap) => { 
+                const newOrders = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.status !== 'served');
+                if (newOrders.length > this.activeOrders.length && this.view === 'merchant') { this.playSound(); }
+                this.activeOrders = newOrders;
+            });
+            onSnapshot(query(collection(db, "orders"), orderBy("timestamp", "desc")), (snap) => { this.servedOrders = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(o => o.status === 'served'); });
+            onSnapshot(doc(db, "settings", "closing"), (docSnap) => { if (docSnap.exists()) this.lastClosingTime = docSnap.data().timestamp; });
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
