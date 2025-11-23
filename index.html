@@ -27,7 +27,6 @@
 
 <div id="app" class="min-h-screen relative pb-10">
 
-    <!-- Connection Status -->
     <div v-if="status === 'offline'" class="bg-orange-500 text-white text-center text-xs py-1 sticky top-0 z-[60]">
         <i class="fas fa-wifi"></i> โหมดออฟไลน์: ข้อมูลบันทึกในเครื่อง (จะส่งขึ้น Cloud เมื่อเน็ตมา)
     </div>
@@ -35,8 +34,7 @@
         <i class="fas fa-check-circle"></i> เชื่อมต่อระบบร้าน: smootie-dba81 เรียบร้อย
     </div>
 
-    <!-- Navbar -->
-<div class="bg-gradient-to-r from-green-700 via-green-600 to-emerald-500 text-white p-3 z-50 shadow-lg">        
+    <div class="bg-gradient-to-r from-green-700 via-green-600 to-emerald-500 text-white p-3 z-50 shadow-lg">        
     <div class="max-w-md mx-auto flex justify-between items-center">
             <h1 class="text-lg font-bold flex items-center gap-2 italic">
                 <span class="text-2xl drop-shadow-md">🥤</span> <span class="drop-shadow-md">Smoothie Cafe</span>
@@ -49,7 +47,6 @@
         </div>
     </div>
 
-    <!-- === VIEW: CUSTOMER === -->
     <div v-if="view === 'customer'" class="max-w-md mx-auto p-4 pb-36 animate-fade-in">
         <div class="bg-gray-900 rounded-2xl p-4 mb-6 shadow-xl border border-gray-700 flex items-center justify-between relative overflow-hidden">
             <div class="z-10">
@@ -76,7 +73,6 @@
              <button v-for="cat in categories" :key="cat" @click="selectedCategory = cat" :class="['px-4 py-2 rounded-full text-sm font-bold whitespace-nowrap transition', selectedCategory === cat ? 'bg-green-600 text-white shadow-md' : 'bg-white text-green-600 border border-green-200']">{{ cat }}</button>
         </div>
 
-        <!-- Menu Grid -->
         <div v-if="isLoading" class="text-center py-10 text-gray-400"><div class="loader mx-auto mb-2"></div><p class="text-sm text-gray-400 mt-2">กำลังโหลดเมนู...</p></div>
         <div v-else class="grid grid-cols-2 gap-4 mb-20">
             <div v-for="item in filteredMenuItems" :key="item.id" class="bg-white p-3 rounded-2xl shadow-sm hover:shadow-md transition border border-gray-100 relative overflow-hidden group cursor-pointer" @click="openCustomizeModal(item)">
@@ -104,7 +100,6 @@
              <i class="fas fa-leaf text-4xl mb-2 opacity-30"></i><br>ยังไม่มีเมนู
         </div>
 
-        <!-- Cart -->
         <div v-if="cart.length > 0" class="fixed bottom-0 left-0 w-full bg-white/90 backdrop-blur-lg border-t border-gray-200 p-4 shadow-[0_-5px_20px_rgba(0,0,0,0.1)] z-40 max-w-md mx-auto right-0 rounded-t-2xl animate-slide-up">
             <div class="max-h-40 overflow-y-auto mb-3 space-y-2 px-1">
                 <div v-for="(cItem, idx) in cart" :key="idx" class="flex justify-between text-sm bg-white p-2 rounded-lg shadow-sm border border-gray-100">
@@ -135,7 +130,6 @@
         </div>
     </div>
 
-    <!-- === MODAL: CUSTOMIZE === -->
     <div v-if="showModal" class="fixed inset-0 z-[60] flex items-end sm:items-center justify-center pointer-events-none">
         <div class="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto" @click="showModal = false"></div>
         <div class="bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-2xl relative z-10 pointer-events-auto animate-slide-up flex flex-col max-h-[85vh]">
@@ -180,7 +174,6 @@
         </div>
     </div>
 
-    <!-- === VIEW: QUEUE === -->
     <div v-if="view === 'queue'" class="min-h-screen p-6 flex flex-col bg-green-900">
         <div class="text-center mb-8">
             <h2 class="text-4xl font-black text-white uppercase tracking-widest drop-shadow-lg">QUEUE BOARD</h2>
@@ -208,7 +201,6 @@
         </div>
     </div>
 
-    <!-- === VIEW: MERCHANT === -->
     <div v-if="view === 'merchant'" class="max-w-md mx-auto min-h-screen bg-gray-50 animate-fade-in">
         <div class="bg-white p-2 z-40 flex gap-2 border-b border-gray-200 shadow-sm">            <button @click="merchantTab = 'orders'" :class="['flex-1 py-3 rounded-xl font-bold text-sm transition-all', merchantTab === 'orders' ? 'bg-green-600 text-white shadow-md' : 'text-gray-500 bg-gray-100']">📋 ออเดอร์</button>
             <button @click="merchantTab = 'menu'" :class="['flex-1 py-3 rounded-xl font-bold text-sm transition-all', merchantTab === 'menu' ? 'bg-gray-800 text-white shadow-md' : 'text-gray-500 bg-gray-100']">⚙️ เมนู/ร้าน</button>
@@ -314,21 +306,24 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
     import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query, orderBy, serverTimestamp, setDoc, getDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
-    // --- 🔥 CONFIG ของคุณ (ฝังให้แล้ว) ---
+    // 🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴
+    // นำ URL ที่ได้จาก Google Apps Script (อันใหม่) มาใส่ตรงนี้
+    const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw92Fw9acnac0RpwL9qJChtAe8AwJ8o_1chwwZdLAMjnV76J5QUsjvk-yhsTirKWjB9/exec'; 
+    // 🔴🔴🔴🔴🔴🔴🔴🔴🔴🔴
+
     const firebaseConfig = {
-  apiKey: "AIzaSyBoYaGEiGq95xwHAwg-wxAaT7iiZu7Vabk",
-  authDomain: "smootie-c0a15.firebaseapp.com",
-  projectId: "smootie-c0a15",
-  storageBucket: "smootie-c0a15.firebasestorage.app",
-  messagingSenderId: "118119061638",
-  appId: "1:118119061638:web:44b12ec2e4a555330c9907",
-  measurementId: "G-5WDZ0NR3EM"
-};
+      apiKey: "AIzaSyBoYaGEiGq95xwHAwg-wxAaT7iiZu7Vabk",
+      authDomain: "smootie-c0a15.firebaseapp.com",
+      projectId: "smootie-c0a15",
+      storageBucket: "smootie-c0a15.firebasestorage.app",
+      messagingSenderId: "118119061638",
+      appId: "1:118119061638:web:44b12ec2e4a555330c9907",
+      measurementId: "G-5WDZ0NR3EM"
+    };
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
     
-    // Hybrid Mode: Keep Local Copy for Speed
     enableIndexedDbPersistence(db).catch((err) => { console.log("Persistence:", err.code); });
 
     const { createApp } = Vue;
@@ -350,12 +345,10 @@
                 status: 'online'
             }
         },
-        // --- 💾 Persistent Logic (Safe Load) ---
         created() {
-            this.loadLocalData(); // Load local first
+            this.loadLocalData(); 
         },
         watch: {
-            // Save to local on change (Backup)
             cart: { handler() { this.saveState(); }, deep: true },
             customerName() { this.saveState(); },
             newMenu: { handler() { this.saveState(); }, deep: true },
@@ -386,7 +379,6 @@
                         const p = JSON.parse(saved);
                         if(p.cart) this.cart = p.cart;
                         if(p.customerName) this.customerName = p.customerName;
-                        // Restore form input (text only)
                         if(p.newMenu) this.newMenu = { ...p.newMenu, imageUrl: null }; 
                         if(p.newTopping) this.newTopping = { ...p.newTopping, imageUrl: null }; 
                     } catch(e) {}
@@ -403,7 +395,6 @@
                     }));
                 } catch (e) {}
             },
-            // --- 📸 Auto Resize Image ---
             handleFile(event) { this.processFile(event.target.files[0], (res) => this.newMenu.imageUrl = res); },
             handleToppingFile(event) { this.processFile(event.target.files[0], (res) => this.newTopping.imageUrl = res); },
             processFile(file, callback) {
@@ -426,7 +417,6 @@
                 };
                 reader.readAsDataURL(file);
             },
-            // --- Instant UI Actions ---
             async addMenu() {
                 if (!this.newMenu.name || !this.newMenu.price || !this.newMenu.imageUrl) { Swal.fire('ข้อมูลไม่ครบ', '', 'warning'); return; }
                 const data = { ...this.newMenu }; 
@@ -461,13 +451,59 @@
             removeCartItem(index) {
                 this.cart.splice(index, 1);
             },
+
+            // ====== 🟢 ฟังก์ชันใหม่สำหรับส่งเข้า Sheet (ร้านน้ำปั่น) ======
+            async sendToGoogleSheet(orderData) {
+                try {
+                    // 1. ชื่อเมนู (เรียงบรรทัด)
+                    const menuNames = orderData.items.map(item => item.name).join(', \n');
+
+                    // 2. ความหวาน
+                    const sweetnessList = orderData.items.map(item => `หวาน ${item.sweetness}%`).join(', \n');
+
+                    // 3. ท็อปปิ้ง
+                    const toppingList = orderData.items.map(item => {
+                        return (item.toppings && item.toppings.length > 0) 
+                            ? item.toppings.map(t => t.name).join('+') 
+                            : '-';
+                    }).join(', \n');
+
+                    // 4. โน้ต
+                    const noteList = orderData.items.map(item => item.note || '-').join(', \n');
+
+                    const payload = {
+                        customer_name: orderData.customerName,
+                        menu_name: menuNames,
+                        sweetness: sweetnessList,
+                        toppings: toppingList,
+                        note: noteList,
+                        price: orderData.total
+                    };
+
+                    await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        mode: 'no-cors',
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(payload)
+                    });
+                    console.log("Sent to Sheet (Cafe Version)");
+                } catch (error) {
+                    console.error("Sheet Error", error);
+                }
+            },
+
             async submitOrder() {
                 if (this.cart.length === 0) return;
                 if (!this.customerName) { Swal.fire('แจ้งเตือน', 'กรุณาใส่ชื่อลูกค้า', 'warning'); return; }
                 if (this.isSubmitting) return;
+                
                 this.isSubmitting = true;
                 const total = this.cartTotal;
                 const orderData = { customerName: this.customerName, items: [...this.cart], total: total, status: "waiting", timestamp: serverTimestamp() };
+                
+                // 🟢 เรียกใช้ฟังก์ชันส่งเข้า Sheet ตรงนี้
+                this.sendToGoogleSheet(orderData);
+
                 this.cart = []; this.customerName = ''; window.scrollTo({ top: 0, behavior: 'smooth' });
                 confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 }, colors: ['#16a34a', '#4ade80', '#fbbf24'] });
                 Swal.fire({ title: 'สั่งเรียบร้อย!', text: 'รอดูคิวที่จอด้านบนได้เลย', icon: 'success', confirmButtonColor: '#16a34a', timer: 2000, showConfirmButton: false });
@@ -500,7 +536,6 @@
             }
         },
         mounted() {
-            // Client-side Sort Only (Reliable)
             onSnapshot(collection(db, "menu"), (snap) => { 
                 this.isLoading = false;
                 this.menuItems = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)); 
@@ -521,5 +556,4 @@
     }).mount('#app');
 </script>
 </body>
-
 </html>
